@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SolarCast Local</title>
+    <meta
+      name="description"
+      content="Local PV solar forecasting dashboard using Open-Meteo, NASA POWER, CSV, and custom API data."
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="#top" aria-label="SolarCast home">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" role="img">
+              <path d="M12 3.25v2.4M12 18.35v2.4M5.25 12h-2.4M21.15 12h-2.4M7.23 7.23 5.53 5.53M18.47 18.47l-1.7-1.7M7.23 16.77l-1.7 1.7M18.47 5.53l-1.7 1.7" />
+              <circle cx="12" cy="12" r="4.15" />
+            </svg>
+          </span>
+          <span>
+            <strong>SolarCast</strong>
+            <small>PV power forecasting</small>
+          </span>
+        </a>
+
+        <div class="topbar-actions">
+          <button class="icon-button" type="button" id="themeToggle" title="Toggle theme" aria-label="Toggle theme">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3a7 7 0 0 0 8.75 8.75 8.5 8.5 0 1 1-8.75-8.75Z" />
+            </svg>
+          </button>
+          <a class="ghost-link" href="https://pvforcast.lovable.app/" target="_blank" rel="noreferrer">
+            Source app
+          </a>
+        </div>
+      </header>
+
+      <main id="top" class="layout">
+        <aside class="control-panel" aria-label="Forecast controls">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Forecast setup</p>
+              <h1>Model your next 72 hours</h1>
+            </div>
+            <button class="icon-button accent" type="button" id="locateBtn" title="Use my location" aria-label="Use my location">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 2.75v2M12 19.25v2M4.75 12h-2M21.25 12h-2" />
+                <circle cx="12" cy="12" r="7" />
+                <circle cx="12" cy="12" r="2.25" />
+              </svg>
+            </button>
+          </div>
+
+          <form id="forecastForm" class="forecast-form">
+            <section class="form-section">
+              <div class="section-title">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M20 10c0 5.25-8 11-8 11S4 15.25 4 10a8 8 0 1 1 16 0Z" />
+                  <circle cx="12" cy="10" r="2.5" />
+                </svg>
+                <span>Location</span>
+              </div>
+
+              <div class="grid two">
+                <label class="field">
+                  <span>Latitude</span>
+                  <input id="latitude" name="latitude" type="number" step="0.0001" min="-90" max="90" value="35.6762" required />
+                </label>
+                <label class="field">
+                  <span>Longitude</span>
+                  <input id="longitude" name="longitude" type="number" step="0.0001" min="-180" max="180" value="139.6503" required />
+                </label>
+              </div>
+
+              <div class="preset-row" aria-label="Location presets">
+                <button type="button" class="chip" data-lat="28.6139" data-lon="77.2090">Delhi</button>
+                <button type="button" class="chip" data-lat="35.6762" data-lon="139.6503">Tokyo</button>
+                <button type="button" class="chip" data-lat="33.4484" data-lon="-112.0740">Phoenix</button>
+                <button type="button" class="chip" data-lat="52.5200" data-lon="13.4050">Berlin</button>
+              </div>
+              <p id="locationStatus" class="location-status">Manual coordinates</p>
+            </section>
+
+            <section class="form-section">
+              <div class="section-title">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3 13h18M5 8h14M7 18h10M6 8l-2 10M18 8l2 10" />
+                </svg>
+                <span>PV array</span>
+              </div>
+
+              <div class="grid two">
+                <label class="field">
+                  <span>Capacity (kW)</span>
+                  <input id="capacity" name="capacity" type="number" step="0.1" min="0.1" value="5" required />
+                </label>
+                <label class="field">
+                  <span>Efficiency (%)</span>
+                  <input id="efficiency" name="efficiency" type="number" step="0.1" min="5" max="35" value="18" required />
+                </label>
+                <label class="field">
+                  <span>Tilt (deg)</span>
+                  <input id="tilt" name="tilt" type="number" step="1" min="0" max="90" value="30" required />
+                </label>
+                <label class="field">
+                  <span>Azimuth (deg)</span>
+                  <input id="azimuth" name="azimuth" type="number" step="1" min="0" max="360" value="180" required />
+                </label>
+              </div>
+
+              <label class="field slider-field">
+                <span>System losses <b id="lossLabel">12%</b></span>
+                <input id="losses" name="losses" type="range" min="0" max="30" value="12" />
+              </label>
+            </section>
+
+            <section class="form-section">
+              <div class="section-title">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 7h16M4 12h16M4 17h10" />
+                </svg>
+                <span>Historical source</span>
+              </div>
+
+              <div class="segmented" role="radiogroup" aria-label="Historical data source">
+                <label>
+                  <input type="radio" name="source" value="nasa" checked />
+                  <span>NASA POWER</span>
+                </label>
+                <label>
+                  <input type="radio" name="source" value="api" />
+                  <span>API</span>
+                </label>
+                <label>
+                  <input type="radio" name="source" value="csv" />
+                  <span>CSV</span>
+                </label>
+              </div>
+
+              <label class="field source-field" id="apiField" hidden>
+                <span>API endpoint</span>
+                <input id="apiUrl" name="apiUrl" type="url" placeholder="https://example.com/api/historical" />
+              </label>
+
+              <label class="file-drop source-field" id="csvField" hidden>
+                <input id="csvFile" name="csvFile" type="file" accept=".csv,text/csv" />
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 3v12M7.5 7.5 12 3l4.5 4.5M5 19h14" />
+                </svg>
+                <span id="csvStatus">Drop or choose CSV</span>
+                <small>date, irradiance, temperature</small>
+              </label>
+            </section>
+
+            <button class="primary-button" type="submit" id="generateBtn">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3.5v4M12 16.5v4M5.99 5.99l2.83 2.83M15.18 15.18l2.83 2.83M3.5 12h4M16.5 12h4M5.99 18.01l2.83-2.83M15.18 8.82l2.83-2.83" />
+              </svg>
+              Generate forecast
+            </button>
+          </form>
+        </aside>
+
+        <section class="workspace" aria-live="polite">
+          <div class="hero-panel">
+            <div>
+              <p class="eyebrow">Live model workspace</p>
+              <h2 id="workspaceTitle">Ready to forecast</h2>
+              <p id="workspaceSubtitle">Configure a PV system, choose a historical source, then generate a 72-hour forecast.</p>
+            </div>
+            <div class="sun-path" aria-hidden="true">
+              <svg viewBox="0 0 420 160">
+                <path class="horizon" d="M24 134H396" />
+                <path class="arc" d="M40 128C92 34 178 10 210 10s118 24 170 118" />
+                <g class="panel-row">
+                  <path d="M86 105h248l24 31H62Z" />
+                  <path d="M113 105 91 136M150 105l-14 31M187 105l-6 31M224 105l4 31M261 105l12 31M298 105l20 31" />
+                  <path d="M79 118h268M70 127h286" />
+                </g>
+                <circle class="sun" cx="210" cy="22" r="13" />
+              </svg>
+            </div>
+          </div>
+
+          <div id="statusBanner" class="status-banner" hidden></div>
+
+          <div id="emptyState" class="empty-state">
+            <div class="empty-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 14h16M6 9h12M8 19h8M7 9l-2 10M17 9l2 10" />
+              </svg>
+            </div>
+            <h2>SolarCast is idle</h2>
+            <p>Your forecast cards, charts, hourly table, and saved-run comparison will appear here.</p>
+          </div>
+
+          <div id="loadingState" class="loading-grid" hidden>
+            <div class="skeleton"></div>
+            <div class="skeleton"></div>
+            <div class="skeleton"></div>
+            <div class="skeleton wide"></div>
+          </div>
+
+          <div id="results" hidden>
+            <div class="toolbar">
+              <div class="tabs" role="tablist" aria-label="Forecast views">
+                <button class="tab active" type="button" data-tab="current">Current forecast</button>
+                <button class="tab" type="button" data-tab="compare">Compare <span id="compareCount">0</span></button>
+                <button class="tab ml-tab" type="button" data-tab="ml">🤖 ML Models</button>
+              </div>
+              <div class="toolbar-actions">
+                <button class="secondary-button" type="button" id="saveForecastBtn">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M19 21 12 17 5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2Z" />
+                  </svg>
+                  Save run
+                </button>
+                <button class="secondary-button" type="button" id="exportCsvBtn">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 3v12M7.5 10.5 12 15l4.5-4.5M5 21h14" />
+                  </svg>
+                  Export CSV
+                </button>
+              </div>
+            </div>
+
+            <div class="tab-panel active" id="tab-current">
+              <div id="kpiGrid" class="kpi-grid"></div>
+
+              <section class="chart-panel">
+                <div class="panel-title">
+                  <div>
+                    <p class="eyebrow">72-hour output</p>
+                    <h3>Power and irradiance</h3>
+                  </div>
+                  <div id="powerLegend" class="legend"></div>
+                </div>
+                <div id="powerChart" class="chart-frame"></div>
+              </section>
+
+              <div class="split-grid">
+                <section class="chart-panel">
+                  <div class="panel-title">
+                    <div>
+                      <p class="eyebrow">Weather drivers</p>
+                      <h3>Temperature, cloud, wind</h3>
+                    </div>
+                    <div id="weatherLegend" class="legend"></div>
+                  </div>
+                  <div id="weatherChart" class="chart-frame small"></div>
+                </section>
+
+                <section class="chart-panel">
+                  <div class="panel-title">
+                    <div>
+                      <p class="eyebrow">Historical context</p>
+                      <h3>Daily irradiance</h3>
+                    </div>
+                    <div id="historyMeta" class="mini-stat"></div>
+                  </div>
+                  <div id="historyChart" class="chart-frame small"></div>
+                </section>
+              </div>
+
+              <section class="table-panel">
+                <div class="panel-title">
+                  <div>
+                    <p class="eyebrow">Hourly breakdown</p>
+                    <h3>Forecast data</h3>
+                  </div>
+                  <button class="text-button" type="button" id="toggleRowsBtn">Show all hours</button>
+                </div>
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Time</th>
+                        <th>Power</th>
+                        <th>Irradiance</th>
+                        <th>Temp</th>
+                        <th>Cloud</th>
+                        <th>Wind</th>
+                      </tr>
+                    </thead>
+                    <tbody id="hourlyRows"></tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
+
+            <div class="tab-panel" id="tab-compare">
+              <section class="chart-panel">
+                <div class="panel-title">
+                  <div>
+                    <p class="eyebrow">Saved forecasts</p>
+                    <h3>Power output comparison</h3>
+                  </div>
+                  <div id="compareLegend" class="legend"></div>
+                </div>
+                <div id="compareChart" class="chart-frame"></div>
+              </section>
+              <div id="savedGrid" class="saved-grid"></div>
+            </div>
+
+            <!-- ===== ML MODELS TAB ===== -->
+            <div class="tab-panel" id="tab-ml">
+
+              <!-- Model status bar -->
+              <div class="ml-status-bar" id="mlStatusBar">
+                <span id="mlStatusText">Generate a forecast first, then train the ML models.</span>
+              </div>
+
+              <!-- Three model cards -->
+              <div class="ml-cards">
+
+                <!-- 1. TF.js Neural Network -->
+                <section class="ml-card tfjs-card">
+                  <div class="ml-card-header">
+                    <div class="ml-card-badge tfjs-badge">TF.js NN</div>
+                    <div>
+                      <h3>In-Browser Neural Network</h3>
+                      <p class="ml-card-sub">TensorFlow.js · Trained locally in your browser · No backend needed</p>
+                    </div>
+                  </div>
+                  <div class="ml-card-body">
+                    <div class="ml-metrics" id="tfjsMetrics">
+                      <div class="ml-metric">
+                        <span class="ml-metric-label">Status</span>
+                        <span class="ml-metric-val" id="tfjsStatus">Not trained</span>
+                      </div>
+                      <div class="ml-metric">
+                        <span class="ml-metric-label">Architecture</span>
+                        <span class="ml-metric-val">9→64→32→16→1</span>
+                      </div>
+                      <div class="ml-metric">
+                        <span class="ml-metric-label">Training MAE</span>
+                        <span class="ml-metric-val" id="tfjsMAE">—</span>
+                      </div>
+                      <div class="ml-metric">
+                        <span class="ml-metric-label">Samples</span>
+                        <span class="ml-metric-val">8,000 synthetic</span>
+                      </div>
+                    </div>
+                    <div class="ml-progress-wrap" id="tfjsProgressWrap" style="display:none">
+                      <div class="ml-progress-label">
+                        <span id="tfjsEpochLabel">Epoch 0 / 60</span>
+                        <span id="tfjsLossLabel">loss: —</span>
+                      </div>
+                      <div class="ml-progress-bar"><div class="ml-progress-fill" id="tfjsFill" style="width:0%"></div></div>
+                    </div>
+                    <button class="ml-train-btn" type="button" id="tfjsTrainBtn" disabled>
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                      Train Neural Network
+                    </button>
+                  </div>
+                </section>
+
+                <!-- 2. Hybrid Physics + ML -->
+                <section class="ml-card hybrid-card">
+                  <div class="ml-card-header">
+                    <div class="ml-card-badge hybrid-badge">Hybrid</div>
+                    <div>
+                      <h3>Physics + ML Correction</h3>
+                      <p class="ml-card-sub">Physics base model · Polynomial correction layer · Instant inference</p>
+                    </div>
+                  </div>
+                  <div class="ml-card-body">
+                    <div class="ml-metrics">
+                      <div class="ml-metric">
+                        <span class="ml-metric-label">Status</span>
+                        <span class="ml-metric-val" id="hybridStatus">Not fitted</span>
+                      </div>
+                      <div class="ml-metric">
+                        <span class="ml-metric-label">Method</span>
+                        <span class="ml-metric-val">Poly regression Δ</span>
+                      </div>
+                      <div class="ml-metric">
+                        <span class="ml-metric-label">Cloud bias fix</span>
+                        <span class="ml-metric-val" id="hybridCloudCoeff">—</span>
+                      </div>
+                      <div class="ml-metric">
+                        <span class="ml-metric-label">Temp bias fix</span>
+                        <span class="ml-metric-val" id="hybridTempCoeff">—</span>
+                      </div>
+                    </div>
+                    <button class="ml-train-btn hybrid-train-btn" type="button" id="hybridTrainBtn" disabled>
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2v-4M9 21H5a2 2 0 0 1-2-2v-4m0 0h18"/></svg>
+                      Fit Correction Layer
+                    </button>
+                  </div>
+                </section>
+
+                <!-- 3. XGBoost API -->
+                <section class="ml-card xgb-card">
+                  <div class="ml-card-header">
+                    <div class="ml-card-badge xgb-badge">XGBoost</div>
+                    <div>
+                      <h3>XGBoost Python Backend</h3>
+                      <p class="ml-card-sub">600 trees · 60k training samples · Run  python ml/serve.py</p>
+                    </div>
+                  </div>
+                  <div class="ml-card-body">
+                    <div class="ml-metrics">
+                      <div class="ml-metric">
+                        <span class="ml-metric-label">Server</span>
+                        <span class="ml-metric-val" id="xgbServerStatus">Not connected</span>
+                      </div>
+                      <div class="ml-metric">
+                        <span class="ml-metric-label">Model R²</span>
+                        <span class="ml-metric-val" id="xgbR2">—</span>
+                      </div>
+                      <div class="ml-metric">
+                        <span class="ml-metric-label">Model MAE</span>
+                        <span class="ml-metric-val" id="xgbMAE">—</span>
+                      </div>
+                      <div class="ml-metric">
+                        <span class="ml-metric-label">Endpoint</span>
+                        <span class="ml-metric-val">:5050/predict</span>
+                      </div>
+                    </div>
+                    <div class="xgb-endpoint">
+                      <input id="xgbEndpoint" type="url" value="http://127.0.0.1:5050" placeholder="http://127.0.0.1:5050" />
+                      <button class="ml-train-btn xgb-connect-btn" type="button" id="xgbConnectBtn">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 9l3 3-3 3M13 15h3M3 19V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>
+                        Connect & Predict
+                      </button>
+                    </div>
+                  </div>
+                </section>
+
+              </div><!-- .ml-cards -->
+
+              <!-- ML comparison chart -->
+              <section class="chart-panel" id="mlComparePanel" style="display:none">
+                <div class="panel-title">
+                  <div>
+                    <p class="eyebrow">Model comparison</p>
+                    <h3>Physics vs Neural Net vs Hybrid vs XGBoost</h3>
+                  </div>
+                  <div id="mlCompareLegend" class="legend"></div>
+                </div>
+                <div id="mlCompareChart" class="chart-frame"></div>
+              </section>
+
+              <!-- Accuracy summary table -->
+              <section class="chart-panel" id="mlAccuracyPanel" style="display:none">
+                <div class="panel-title">
+                  <div>
+                    <p class="eyebrow">Accuracy summary</p>
+                    <h3>Model error metrics vs Physics baseline</h3>
+                  </div>
+                </div>
+                <div class="table-wrap">
+                  <table id="mlAccuracyTable">
+                    <thead>
+                      <tr>
+                        <th>Model</th>
+                        <th>Total kWh</th>
+                        <th>Peak kW</th>
+                        <th>Avg vs Physics</th>
+                        <th>Cloud Corr.</th>
+                        <th>Confidence</th>
+                      </tr>
+                    </thead>
+                    <tbody id="mlAccuracyRows"></tbody>
+                  </table>
+                </div>
+              </section>
+
+            </div><!-- #tab-ml -->
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

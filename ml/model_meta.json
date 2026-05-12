@@ -1,0 +1,20 @@
+{
+  "feature_names": [
+    "hour_sin",
+    "hour_cos",
+    "day_sin",
+    "day_cos",
+    "solar_elevation_norm",
+    "irradiance_norm",
+    "cloud_cover_norm",
+    "temp_norm",
+    "wind_norm",
+    "tilt_norm",
+    "azimuth_diff_norm",
+    "latitude_norm",
+    "efficiency_norm",
+    "losses_norm"
+  ],
+  "mae": 0.004675246775150299,
+  "r2": 0.9950289726257324
+}
